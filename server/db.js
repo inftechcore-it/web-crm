@@ -59,11 +59,27 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_activities_lead ON activities(lead_id);
   `);
 
-  // Safe schema migration for search_name column
+  // Safe schema migrations for new enrichment fields
   const leadCols = db.prepare("PRAGMA table_info(leads)").all();
-  if (!leadCols.some(col => col.name === 'search_name')) {
+  const colNames = leadCols.map(c => c.name);
+
+  if (!colNames.includes('search_name')) {
     db.exec(`ALTER TABLE leads ADD COLUMN search_name TEXT;`);
-    console.log('Added search_name column to leads table');
+  }
+  if (!colNames.includes('email')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN email TEXT;`);
+  }
+  if (!colNames.includes('linkedin_url')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN linkedin_url TEXT;`);
+  }
+  if (!colNames.includes('google_place_id')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN google_place_id TEXT;`);
+  }
+  if (!colNames.includes('maps_url')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN maps_url TEXT;`);
+  }
+  if (!colNames.includes('rating')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN rating REAL;`);
   }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_search_name ON leads(search_name);`);

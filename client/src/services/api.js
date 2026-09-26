@@ -119,6 +119,30 @@ export async function fetchSearchSetsMeta() {
   return res.json();
 }
 
+export async function fetchPlacesStatus() {
+  const res = await fetch(`${BASE_URL}/leads/places/status`);
+  if (!res.ok) return { configured: false };
+  return res.json();
+}
+
+export async function enrichLeadWithPlaces(id) {
+  const res = await fetch(`${BASE_URL}/leads/${id}/enrich-places`, {
+    method: 'POST'
+  });
+  if (!res.ok) throw new Error(`Failed to enrich lead with Google Places`);
+  return res.json();
+}
+
+export async function generateFromGooglePlaces(payload) {
+  const res = await fetch(`${BASE_URL}/leads/generate-places`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`Google Places generation failed`);
+  return res.json();
+}
+
 export const EXPORT_EXCEL_URL = `${BASE_URL}/export/excel`;
 export const EXPORT_CSV_URL = `${BASE_URL}/export/csv`;
 export const EXPORT_JSON_URL = `${BASE_URL}/export/json`;

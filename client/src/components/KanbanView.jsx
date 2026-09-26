@@ -9,8 +9,19 @@ import {
   Flame,
   CheckCircle2,
   Building2,
-  Plus
+  MapPin,
+  Globe,
+  Search,
+  Zap,
+  Loader2,
+  Check
 } from 'lucide-react';
+
+const LinkedInIcon = ({ className = "w-2.5 h-2.5" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+  </svg>
+);
 import {
   formatCurrencyLakhs,
   formatVerticalName,
@@ -62,8 +73,25 @@ export default function KanbanView({
   onStageChange,
   onOpenPitchModal,
   onOpenActivityModal,
-  onOpenEditModal
+  onOpenEditModal,
+  onEnrichLead
 }) {
+  const [enrichingId, React_setEnrichingId] = React.useState(null);
+  const [enrichSuccessId, React_setEnrichSuccessId] = React.useState(null);
+
+  const handleEnrich = async (lead) => {
+    if (!onEnrichLead || enrichingId) return;
+    React_setEnrichingId(lead.id);
+    try {
+      await onEnrichLead(lead.id);
+      React_setEnrichSuccessId(lead.id);
+      setTimeout(() => React_setEnrichSuccessId(null), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      React_setEnrichingId(null);
+    }
+  };
   const getPrevStage = (current) => {
     const idx = PIPELINE_STAGES.indexOf(current);
     return idx > 0 ? PIPELINE_STAGES[idx - 1] : null;
@@ -139,13 +167,67 @@ export default function KanbanView({
                         </button>
 
                         {/* City & Sub-region */}
-                        <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+                        <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1 flex-wrap">
                           <span className="font-semibold text-sky-800">{lead.city}</span>
                           {lead.sub_region && lead.sub_region !== lead.city && (
                             <>
                               <span>•</span>
                               <span className="truncate max-w-[130px]">{lead.sub_region}</span>
                             </>
+                          )}
+                          {lead.rating && (
+                            <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              ⭐ {lead.rating}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Verified Search & Profile Shortcuts */}
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          <a
+                            href={lead.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.company_name + ' ' + (lead.city || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Verify on Google Maps"
+                            className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200"
+                          >
+                            <MapPin className="w-2.5 h-2.5" />
+                            <span>Maps</span>
+                          </a>
+
+                          <a
+                            href={lead.linkedin_url || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(lead.company_name + ' ' + (lead.target_role || 'Decision Maker') + ' ' + (lead.city || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Find on LinkedIn"
+                            className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200"
+                          >
+                            <LinkedInIcon className="w-2.5 h-2.5" />
+                            <span>LinkedIn</span>
+                          </a>
+
+                          {lead.website ? (
+                            <a
+                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Visit Website"
+                              className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200"
+                            >
+                              <Globe className="w-2.5 h-2.5" />
+                              <span>Site</span>
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://www.google.com/search?q=${encodeURIComponent(lead.company_name + ' ' + (lead.city || '') + ' official website')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Search Site"
+                              className="inline-flex items-center gap-0.5 text-[9px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded"
+                            >
+                              <Search className="w-2.5 h-2.5" />
+                              <span>Search</span>
+                            </a>
                           )}
                         </div>
 
@@ -171,6 +253,28 @@ export default function KanbanView({
 
                           {/* Quick Outreach Icons */}
                           <div className="flex items-center gap-1">
+                            {/* Enrich button */}
+                            <button
+                              onClick={() => handleEnrich(lead)}
+                              disabled={enrichingId === lead.id}
+                              title="Enrich with Google Places"
+                              className={`p-1 rounded-md border transition-colors ${
+                                enrichSuccessId === lead.id
+                                  ? 'text-emerald-700 bg-emerald-50 border-emerald-300'
+                                  : enrichingId === lead.id
+                                  ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse'
+                                  : 'text-amber-500 hover:text-amber-700 hover:bg-amber-50 border-transparent hover:border-amber-200'
+                              }`}
+                            >
+                              {enrichingId === lead.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : enrichSuccessId === lead.id ? (
+                                <Check className="w-3.5 h-3.5" />
+                              ) : (
+                                <Zap className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+
                             <button
                               onClick={() => onOpenPitchModal(lead, 'email')}
                               title="Cold Email"

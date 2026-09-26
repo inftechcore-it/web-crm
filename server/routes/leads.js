@@ -7,6 +7,14 @@ const router = express.Router();
 const leadService = require('../services/leadService');
 const osmService = require('../services/osmService');
 const pitchService = require('../services/pitchService');
+const googlePlacesService = require('../services/googlePlacesService');
+
+// GET /api/leads/places/status - Check if Google Places API Key is configured
+router.get('/places/status', (req, res) => {
+  res.json({
+    configured: googlePlacesService.isApiKeyConfigured()
+  });
+});
 
 // GET /api/leads - Query with search & filters
 router.get('/', (req, res) => {
@@ -198,6 +206,35 @@ router.delete('/:id', (req, res) => {
   } catch (err) {
     console.error('Error deleting lead:', err);
     res.status(500).json({ error: 'Failed to delete lead', details: err.message });
+  }
+});
+
+// POST /api/leads/:id/enrich-places - Enrich individual lead using Google Places & live lookup
+router.post('/:id/enrich-places', async (req, res) => {
+  try {
+    const result = await googlePlacesService.enrichLeadWithPlaces(req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Places enrichment error:', err);
+    res.status(500).json({ error: 'Failed to enrich lead', details: err.message });
+  }
+});
+
+// POST /api/leads/generate-places - Direct lead generation via Google Places API
+router.post('/generate-places', async (req, res) => {
+  try {
+    const { query, city, vertical, count, searchName } = req.body;
+    const result = await googlePlacesService.generateFromGooglePlaces({
+      query,
+      city,
+      vertical,
+      count: parseInt(count, 10) || 10,
+      searchName
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Google Places generation error:', err);
+    res.status(500).json({ error: 'Google Places generation failed', details: err.message });
   }
 });
 

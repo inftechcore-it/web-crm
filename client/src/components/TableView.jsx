@@ -16,8 +16,20 @@ import {
   Tag,
   Clock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MapPin,
+  Globe,
+  Search,
+  Zap,
+  Loader2,
+  Check
 } from 'lucide-react';
+
+const LinkedInIcon = ({ className = "w-2.5 h-2.5" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+  </svg>
+);
 import {
   formatCurrencyLakhs,
   formatVerticalName,
@@ -43,9 +55,26 @@ export default function TableView({
   sortBy,
   sortOrder,
   onSortChange,
-  onFilterBySearchName
+  onFilterBySearchName,
+  onEnrichLead
 }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [enrichingId, setEnrichingId] = useState(null);
+  const [enrichSuccessId, setEnrichSuccessId] = useState(null);
+
+  const handleEnrich = async (lead) => {
+    if (!onEnrichLead || enrichingId) return;
+    setEnrichingId(lead.id);
+    try {
+      await onEnrichLead(lead.id);
+      setEnrichSuccessId(lead.id);
+      setTimeout(() => setEnrichSuccessId(null), 3000);
+    } catch (err) {
+      console.error('Enrich lead error:', err);
+    } finally {
+      setEnrichingId(null);
+    }
+  };
 
   const isAllSelected = leads.length > 0 && leads.every(l => selectedIds.includes(l.id));
 
@@ -244,18 +273,12 @@ export default function TableView({
                     {/* Company & Location */}
                     <td className="py-3.5 px-4">
                       <div>
-                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                           <span>{lead.company_name}</span>
-                          {lead.website && (
-                            <a
-                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="Visit Website"
-                              className="text-slate-400 hover:text-sky-600"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
+                          {lead.rating && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              ⭐ {lead.rating}
+                            </span>
                           )}
                         </div>
                         <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
@@ -265,6 +288,58 @@ export default function TableView({
                               <span className="text-slate-300">•</span>
                               <span className="truncate max-w-[160px]">{lead.sub_region}</span>
                             </>
+                          )}
+                        </div>
+
+                        {/* Verified Search & Profile Shortcuts */}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {/* Google Maps link */}
+                          <a
+                            href={lead.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.company_name + ' ' + (lead.city || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Verify on Google Maps & Reviews"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 transition-colors"
+                          >
+                            <MapPin className="w-2.5 h-2.5" />
+                            <span>Maps</span>
+                          </a>
+
+                          {/* LinkedIn Person / Org search */}
+                          <a
+                            href={lead.linkedin_url || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(lead.company_name + ' ' + (lead.target_role || 'Decision Maker') + ' ' + (lead.city || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Find Decision Maker on LinkedIn"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition-colors"
+                          >
+                            <LinkedInIcon className="w-2.5 h-2.5" />
+                            <span>LinkedIn</span>
+                          </a>
+
+                          {/* Official Website or Google Search */}
+                          {lead.website ? (
+                            <a
+                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Visit Verified Website"
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200 transition-colors"
+                            >
+                              <Globe className="w-2.5 h-2.5" />
+                              <span className="truncate max-w-[85px]">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://www.google.com/search?q=${encodeURIComponent(lead.company_name + ' ' + (lead.city || '') + ' official website')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Search Google for Official Site"
+                              className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded transition-colors"
+                            >
+                              <Search className="w-2.5 h-2.5" />
+                              <span>Find Site</span>
+                            </a>
                           )}
                         </div>
                       </div>
@@ -285,6 +360,20 @@ export default function TableView({
                       <div className="text-[11px] text-slate-400 font-normal truncate max-w-[130px]">
                         {lead.target_role || 'IT / Facility Admin'}
                       </div>
+                      {lead.phone && (
+                        <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-[130px]">
+                          {lead.phone}
+                        </div>
+                      )}
+                      {lead.email && (
+                        <a
+                          href={`mailto:${lead.email}`}
+                          title={`Email ${lead.email}`}
+                          className="inline-block text-[10px] text-sky-600 hover:underline truncate max-w-[130px]"
+                        >
+                          {lead.email}
+                        </a>
+                      )}
                     </td>
 
                     {/* Primary AV Requirement */}
@@ -332,6 +421,30 @@ export default function TableView({
                     {/* Row-Level Actions (Keeping row-level pitch generator as requested!) */}
                     <td className="py-3.5 px-4 text-right pr-6">
                       <div className="flex items-center justify-end gap-1">
+
+                        {/* ⚡ Enrich via Google Places */}
+                        <button
+                          onClick={() => handleEnrich(lead)}
+                          disabled={enrichingId === lead.id}
+                          title={lead.google_place_id ? "Re-enrich with Google Places" : "⚡ Enrich via Google Places & Live Verification"}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            enrichSuccessId === lead.id
+                              ? 'text-emerald-700 bg-emerald-50 border-emerald-300'
+                              : enrichingId === lead.id
+                              ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse'
+                              : lead.google_place_id
+                              ? 'text-sky-600 hover:text-sky-800 hover:bg-sky-50 border-transparent hover:border-sky-200'
+                              : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200/60'
+                          }`}
+                        >
+                          {enrichingId === lead.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : enrichSuccessId === lead.id ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : (
+                            <Zap className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                         
                         {/* Cold Email Pitch */}
                         <button

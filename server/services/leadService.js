@@ -169,7 +169,8 @@ function updateLead(id, updates) {
   const allowedFields = [
     'company_name', 'vertical', 'city', 'sub_region', 'address', 'phone',
     'website', 'target_role', 'suggested_contact_name', 'primary_av_need',
-    'pitch_angle', 'budget_tier', 'priority', 'status', 'deal_value', 'notes', 'search_name'
+    'pitch_angle', 'budget_tier', 'priority', 'status', 'deal_value', 'notes',
+    'search_name', 'email', 'linkedin_url', 'google_place_id', 'maps_url', 'rating'
   ];
 
   const setClauses = [];

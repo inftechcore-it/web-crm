@@ -2,6 +2,7 @@
  * Collabsight AV CRM - Express Server Entry Point
  */
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');

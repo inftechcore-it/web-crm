@@ -25,7 +25,8 @@ import {
   updateLead,
   deleteLead,
   batchDeleteLeads,
-  batchUpdateStatus
+  batchUpdateStatus,
+  enrichLeadWithPlaces
 } from './services/api';
 
 export default function App() {
@@ -135,6 +136,22 @@ export default function App() {
       loadData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Google Places on-demand enrichment handler
+  const handleEnrichLead = async (leadId) => {
+    try {
+      const res = await enrichLeadWithPlaces(leadId);
+      if (res.success && res.lead) {
+        setLeads(prev => prev.map(l => (l.id === leadId ? res.lead : l)));
+        const newStats = await fetchStats();
+        setStats(newStats);
+        return res;
+      }
+    } catch (err) {
+      console.error('Error enriching lead:', err);
+      throw err;
     }
   };
 
@@ -379,6 +396,7 @@ export default function App() {
                   sortOrder={sortOrder}
                   onSortChange={handleSortChange}
                   onFilterBySearchName={handleFilterBySearchName}
+                  onEnrichLead={handleEnrichLead}
                 />
               )}
 
@@ -390,6 +408,7 @@ export default function App() {
                   onOpenPitchModal={handleOpenPitchModal}
                   onOpenActivityModal={handleOpenActivityModal}
                   onOpenEditModal={handleOpenEditModal}
+                  onEnrichLead={handleEnrichLead}
                 />
               )}
 

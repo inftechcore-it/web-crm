@@ -19,7 +19,7 @@ import {
   User,
   Sliders
 } from 'lucide-react';
-import { generateLeads, createLead, importCsvLeads } from '../services/api';
+import { generateLeads, createLead, importCsvLeads, fetchPlacesStatus, generateFromGooglePlaces } from '../services/api';
 import { VERTICAL_OPTIONS, CITY_OPTIONS } from '../utils/formatters';
 
 const PRESET_REGIONS = [
@@ -44,8 +44,8 @@ export default function GenerateLeadsView({
   onOpenImportModal,
   onNavigateToAllLeads
 }) {
-  // 1. Generation Engine State (Curated / OSM)
-  const [engineMode, setEngineMode] = useState('curated'); // 'curated' | 'osm'
+  // 1. Generation Engine State (Curated / OSM / Places)
+  const [engineMode, setEngineMode] = useState('curated'); // 'curated' | 'osm' | 'places'
   const [regionKey, setRegionKey] = useState('kalyan');
   const [customHub, setCustomHub] = useState('Kalyan-Dombivli');
   const [searchName, setSearchName] = useState('Kalyan Tech Hub - Corporate IT');
@@ -54,6 +54,11 @@ export default function GenerateLeadsView({
   const [genLoading, setGenLoading] = useState(false);
   const [genResult, setGenResult] = useState(null);
   const [genError, setGenError] = useState(null);
+  const [placesStatus, setPlacesStatus] = useState(null);
+
+  React.useEffect(() => {
+    fetchPlacesStatus().then(setPlacesStatus).catch(() => setPlacesStatus({ configured: false }));
+  }, []);
 
   // 2. Quick Add Single Lead State
   const [quickLead, setQuickLead] = useState({
@@ -93,14 +98,28 @@ export default function GenerateLeadsView({
     const finalSearch = searchName.trim() || `${finalHub} Batch`;
 
     try {
-      const res = await generateLeads({
-        regionKey,
-        verticalKey,
-        mode: engineMode,
-        count,
-        customHub: finalHub,
-        searchName: finalSearch
-      });
+      let res;
+      if (engineMode === 'places') {
+        if (!placesStatus?.configured) {
+          throw new Error('Google Places API key is not configured. Add GOOGLE_PLACES_API_KEY in server/.env file or use 1-click Enrich on individual leads.');
+        }
+        res = await generateFromGooglePlaces({
+          query: finalHub,
+          city: finalHub,
+          vertical: verticalKey,
+          count,
+          searchName: finalSearch
+        });
+      } else {
+        res = await generateLeads({
+          regionKey,
+          verticalKey,
+          mode: engineMode,
+          count,
+          customHub: finalHub,
+          searchName: finalSearch
+        });
+      }
       setGenResult(res);
       if (onSuccess) onSuccess();
     } catch (err) {
@@ -244,7 +263,7 @@ export default function GenerateLeadsView({
             </div>
 
             {/* Mode Toggle */}
-            <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+            <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold gap-1 flex-wrap">
               <button
                 type="button"
                 onClick={() => setEngineMode('curated')}
@@ -267,8 +286,53 @@ export default function GenerateLeadsView({
               >
                 ⚡ Live OSM
               </button>
+              <button
+                type="button"
+                onClick={() => setEngineMode('places')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  engineMode === 'places'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📍 Google Places API</span>
+                {placesStatus?.configured ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Google API Key Active"></span>
+                ) : (
+                  <span className="text-[9px] font-normal text-amber-700 bg-amber-100 px-1 rounded">Key Setup</span>
+                )}
+              </button>
             </div>
           </div>
+
+          {/* Places API Status Notice */}
+          {engineMode === 'places' && (
+            <div className={`p-3 rounded-xl border text-xs leading-relaxed ${
+              placesStatus?.configured
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              {placesStatus?.configured ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Google Places API Active:</strong> Real-time verified official websites, direct phone numbers, and ratings will be extracted from Google Maps.</span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Google Places API Setup Guide</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700">
+                    To scrape live businesses via Google Places API: add your Google Cloud API key in <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">server/.env</code> as <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">GOOGLE_PLACES_API_KEY=AIzaSy...</code>.
+                  </p>
+                  <p className="text-[11px] text-amber-700">
+                    💡 <em>Tip: You can also use the 1-click ⚡ Enrich or LinkedIn/Maps verification buttons on any lead in the All Leads table without an API key!</em>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Form Fields */}
           <div className="space-y-4">
