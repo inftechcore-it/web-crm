@@ -19,15 +19,36 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/leads/meta/search-sets - Get search set and dimension metadata for cascading filters
+router.get('/meta/search-sets', (req, res) => {
+  try {
+    const meta = leadService.getSearchSetsMeta();
+    res.json(meta);
+  } catch (err) {
+    console.error('Error fetching search sets metadata:', err);
+    res.status(500).json({ error: 'Failed to fetch search sets metadata', details: err.message });
+  }
+});
+
 // POST /api/leads/generate - Trigger live OSM or curated generation
 router.post('/generate', async (req, res) => {
   try {
-    const { regionKey = 'kalyan', verticalKey = 'corporate_it', mode = 'auto', count = 8 } = req.body;
+    const {
+      regionKey = 'kalyan',
+      verticalKey = 'corporate_it',
+      mode = 'auto',
+      count = 8,
+      customHub = '',
+      searchName = ''
+    } = req.body;
+
     const result = await osmService.generateAndSaveLeads({
       regionKey,
       verticalKey,
       mode,
-      count: parseInt(count, 10) || 8
+      count: parseInt(count, 10) || 8,
+      customHub: (customHub || '').trim(),
+      searchName: (searchName || '').trim()
     });
     res.json({
       success: true,

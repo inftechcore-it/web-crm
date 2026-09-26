@@ -113,6 +113,12 @@ export async function fetchStats() {
   return res.json();
 }
 
+export async function fetchSearchSetsMeta() {
+  const res = await fetch(`${BASE_URL}/leads/meta/search-sets`);
+  if (!res.ok) throw new Error(`Failed to fetch search sets metadata`);
+  return res.json();
+}
+
 export const EXPORT_EXCEL_URL = `${BASE_URL}/export/excel`;
 export const EXPORT_CSV_URL = `${BASE_URL}/export/csv`;
 export const EXPORT_JSON_URL = `${BASE_URL}/export/json`;

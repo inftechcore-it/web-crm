@@ -37,11 +37,11 @@ function seedDatabase(force = false) {
     INSERT INTO leads (
       id, company_name, vertical, city, sub_region, address, phone,
       website, target_role, suggested_contact_name, primary_av_need,
-      pitch_angle, budget_tier, priority, status, deal_value, notes, created_at, updated_at
+      pitch_angle, budget_tier, priority, status, deal_value, notes, search_name, created_at, updated_at
     ) VALUES (
       @id, @company_name, @vertical, @city, @sub_region, @address, @phone,
       @website, @target_role, @suggested_contact_name, @primary_av_need,
-      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes,
+      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes, @search_name,
       datetime('now', @created_offset), datetime('now')
     )
   `);

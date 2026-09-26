@@ -11,7 +11,13 @@ const TARGET_REGIONS = {
   thane: { name: "Thane", bbox: [19.16, 72.93, 19.25, 73.02] },
   navi_mumbai: { name: "Navi Mumbai", bbox: [19.00, 72.98, 19.18, 73.06] },
   andheri_bkc: { name: "Mumbai (Andheri / BKC)", bbox: [19.05, 72.82, 19.13, 72.88] },
-  pune: { name: "Pune", bbox: [18.45, 73.78, 18.62, 73.95] },
+  pune: { name: "Pune (Hinjawadi / Baner)", bbox: [18.45, 73.78, 18.62, 73.95] },
+  bengaluru: { name: "Bengaluru (HSR / Koramangala / Whitefield)", bbox: [12.85, 77.50, 13.08, 77.75] },
+  delhi_ncr: { name: "Delhi NCR (Gurugram / Noida / CP)", bbox: [28.40, 77.00, 28.75, 77.40] },
+  hyderabad: { name: "Hyderabad (HITEC City / Gachibowli)", bbox: [17.38, 78.30, 17.50, 78.50] },
+  ahmedabad: { name: "Ahmedabad (SG Highway / Prahlad Nagar)", bbox: [22.95, 72.48, 23.10, 72.65] },
+  chennai: { name: "Chennai (OMR / Guindy)", bbox: [12.92, 80.18, 13.08, 80.28] },
+  kolkata: { name: "Kolkata (Salt Lake Sector V / New Town)", bbox: [22.54, 88.38, 22.62, 88.48] },
   nashik: { name: "Nashik", bbox: [19.95, 73.72, 20.05, 73.84] },
   aurangabad: { name: "Aurangabad (Chhatrapati Sambhajinagar)", bbox: [19.84, 75.28, 19.92, 75.38] },
   nagpur: { name: "Nagpur", bbox: [21.08, 79.02, 21.18, 79.14] },
@@ -167,8 +173,8 @@ function queryOverpass(queryUrl, postData) {
   });
 }
 
-function enrichRawLead(rawName, regionKey, verticalKey, addressStr = null, websiteStr = null, phoneStr = null) {
-  const region = TARGET_REGIONS[regionKey] || { name: "Mumbai MMR" };
+function enrichRawLead(rawName, regionKey, verticalKey, addressStr = null, websiteStr = null, phoneStr = null, customHub = null, searchName = null) {
+  const cityName = customHub && customHub.trim() ? customHub.trim() : (TARGET_REGIONS[regionKey]?.name || "Mumbai MMR");
   const vMeta = VERTICAL_METADATA[verticalKey] || VERTICAL_METADATA.corporate_it;
 
   // Pick deterministic but varied attributes based on name length
@@ -183,14 +189,16 @@ function enrichRawLead(rawName, regionKey, verticalKey, addressStr = null, websi
 
   const phone = phoneStr || `+91 ${9800000000 + (hash * 123456) % 99999999}`;
   const website = websiteStr || `https://${rawName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-  const address = addressStr || `${region.name} Commercial District, Maharashtra`;
+  const address = addressStr || `${cityName} Commercial District, India`;
+
+  const finalSearchName = searchName && searchName.trim() ? searchName.trim() : `${cityName} - ${vMeta.label}`;
 
   return {
     id: `LEAD-${verticalKey.slice(0, 4).toUpperCase()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     company_name: rawName,
     vertical: verticalKey,
-    city: region.name,
-    sub_region: `${region.name} Central`,
+    city: cityName,
+    sub_region: `${cityName} Hub`,
     address: address,
     phone: phone,
     website: website,
@@ -202,13 +210,14 @@ function enrichRawLead(rawName, regionKey, verticalKey, addressStr = null, websi
     priority: priority,
     status: 'New',
     deal_value: Number(dealValue.toFixed(1)),
-    notes: `Generated via Lead Engine. Prospect for ${vMeta.label} in ${region.name}.`
+    search_name: finalSearchName,
+    notes: `Generated via Lead Engine for [${finalSearchName}]. Commercial prospect in ${cityName}.`
   };
 }
 
-async function fetchFromOverpass(regionKey, verticalKey, limit = 10) {
+async function fetchFromOverpass(regionKey, verticalKey, limit = 10, customHub = null, searchName = null) {
   const region = TARGET_REGIONS[regionKey] || TARGET_REGIONS.thane;
-  const [s, w, n, e] = region.bbox;
+  const [s, w, n, e] = region.bbox || [19.16, 72.93, 19.25, 73.02];
 
   let selector = '';
   if (verticalKey === 'education_coaching') {
@@ -254,12 +263,12 @@ async function fetchFromOverpass(regionKey, verticalKey, limit = 10) {
           if (!name) continue;
 
           const street = tags['addr:street'] || tags['addr:suburb'] || '';
-          const city = tags['addr:city'] || region.name;
+          const city = customHub || tags['addr:city'] || region.name;
           const address = [street, city].filter(Boolean).join(', ');
           const phone = tags.phone || tags['contact:phone'] || null;
           const website = tags.website || tags['contact:website'] || null;
 
-          leads.push(enrichRawLead(name, regionKey, verticalKey, address, website, phone));
+          leads.push(enrichRawLead(name, regionKey, verticalKey, address, website, phone, customHub, searchName));
           if (leads.length >= limit) break;
         }
 
@@ -275,9 +284,12 @@ async function fetchFromOverpass(regionKey, verticalKey, limit = 10) {
   return null;
 }
 
-function generateCuratedLeads(regionKey, verticalKey, count = 8) {
-  const regionNames = SAMPLE_LOCAL_NAMES[regionKey] || SAMPLE_LOCAL_NAMES.kalyan;
-  const region = TARGET_REGIONS[regionKey] || { name: "Mumbai MMR" };
+function generateCuratedLeads(regionKey, verticalKey, count = 8, customHub = null, searchName = null) {
+  const regionNames = SAMPLE_LOCAL_NAMES[regionKey] || (customHub ? [
+    `${customHub} Tech Center`, `${customHub} Innovation Labs`, `${customHub} Design Collective`,
+    `${customHub} Executive Suites`, `${customHub} Premier Spaces`, `${customHub} Learning Point`
+  ] : SAMPLE_LOCAL_NAMES.kalyan);
+  const cityName = customHub || TARGET_REGIONS[regionKey]?.name || "Mumbai MMR";
   const vMeta = VERTICAL_METADATA[verticalKey] || VERTICAL_METADATA.corporate_it;
 
   const leads = [];
@@ -293,36 +305,36 @@ function generateCuratedLeads(regionKey, verticalKey, count = 8) {
     const baseName = regionNames[i % regionNames.length];
     const suffix = suffixList[i % suffixList.length];
     const companyName = `${baseName} ${suffix}`;
-    leads.push(enrichRawLead(companyName, regionKey, verticalKey));
+    leads.push(enrichRawLead(companyName, regionKey, verticalKey, null, null, null, customHub, searchName));
   }
 
   return { leads, source: 'Curated_Seed' };
 }
 
-async function generateAndSaveLeads({ regionKey, verticalKey, mode = 'auto', count = 8 }) {
+async function generateAndSaveLeads({ regionKey, verticalKey, mode = 'auto', count = 8, customHub = '', searchName = '' }) {
   let result = null;
 
   if (mode === 'osm' || mode === 'auto') {
     try {
-      result = await fetchFromOverpass(regionKey, verticalKey, count);
+      result = await fetchFromOverpass(regionKey, verticalKey, count, customHub, searchName);
     } catch (e) {
       console.warn("OSM Overpass failed, falling back to curated generator:", e.message);
     }
   }
 
   if (!result || !result.leads || result.leads.length === 0) {
-    result = generateCuratedLeads(regionKey, verticalKey, count);
+    result = generateCuratedLeads(regionKey, verticalKey, count, customHub, searchName);
   }
 
   const insertLead = db.prepare(`
     INSERT OR REPLACE INTO leads (
       id, company_name, vertical, city, sub_region, address, phone,
       website, target_role, suggested_contact_name, primary_av_need,
-      pitch_angle, budget_tier, priority, status, deal_value, notes, created_at, updated_at
+      pitch_angle, budget_tier, priority, status, deal_value, notes, search_name, created_at, updated_at
     ) VALUES (
       @id, @company_name, @vertical, @city, @sub_region, @address, @phone,
       @website, @target_role, @suggested_contact_name, @primary_av_need,
-      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes,
+      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes, @search_name,
       datetime('now'), datetime('now')
     )
   `);
@@ -332,13 +344,15 @@ async function generateAndSaveLeads({ regionKey, verticalKey, mode = 'auto', cou
     VALUES (?, ?, ?, ?, datetime('now'))
   `);
 
+  const finalRegionLabel = customHub || TARGET_REGIONS[regionKey]?.name || regionKey;
+
   const transaction = db.transaction((leads) => {
     let saved = 0;
     for (const lead of leads) {
       insertLead.run(lead);
       saved++;
     }
-    insertJob.run(result.source, TARGET_REGIONS[regionKey]?.name || regionKey, verticalKey, saved);
+    insertJob.run(result.source, finalRegionLabel, verticalKey, saved);
     return saved;
   });
 
@@ -347,7 +361,8 @@ async function generateAndSaveLeads({ regionKey, verticalKey, mode = 'auto', cou
   return {
     source: result.source,
     count: totalSaved,
-    leads: result.leads
+    leads: result.leads,
+    searchName: searchName || `${finalRegionLabel} - ${VERTICAL_METADATA[verticalKey]?.label || verticalKey}`
   };
 }
 

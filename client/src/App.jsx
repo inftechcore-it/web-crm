@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
-import ActionToolbar from './components/ActionToolbar';
+import Sidebar from './components/Sidebar';
 import FilterBar from './components/FilterBar';
 import TableView from './components/TableView';
 import KanbanView from './components/KanbanView';
 import AnalyticsView from './components/AnalyticsView';
+import PitchGeneratorView from './components/PitchGeneratorView';
+import LeadsBySearchSetView from './components/LeadsBySearchSetView';
 import BatchActionBar from './components/BatchActionBar';
 
 import GenerateLeadsModal from './components/modals/GenerateLeadsModal';
@@ -16,6 +18,7 @@ import ImportCsvModal from './components/modals/ImportCsvModal';
 import {
   fetchLeads,
   fetchStats,
+  fetchSearchSetsMeta,
   updateLead,
   deleteLead,
   batchDeleteLeads,
@@ -23,12 +26,14 @@ import {
 } from './services/api';
 
 export default function App() {
-  // Navigation & View Mode
-  const [activeView, setActiveView] = useState('table'); // 'table' | 'kanban' | 'analytics'
+  // Navigation & View Mode: 'table' | 'kanban' | 'analytics' | 'pitch' | 'search_sets'
+  const [activeView, setActiveView] = useState('table');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Leads & Pipeline Data
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
+  const [searchSetsMeta, setSearchSetsMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -39,8 +44,9 @@ export default function App() {
     city: 'all',
     priority: 'all',
     status: 'all',
+    search_name: 'all',
     page: 1,
-    limit: 100
+    limit: 20 // Default to 20 for crisp pagination
   });
 
   const [sortBy, setSortBy] = useState('created_at');
@@ -48,7 +54,7 @@ export default function App() {
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
-    limit: 100,
+    limit: 20,
     totalPages: 1
   });
 
@@ -72,13 +78,14 @@ export default function App() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [leadsRes, statsRes] = await Promise.all([
+      const [leadsRes, statsRes, metaRes] = await Promise.all([
         fetchLeads({
           ...filters,
           sortBy,
           sortOrder
         }),
-        fetchStats()
+        fetchStats(),
+        fetchSearchSetsMeta().catch(() => null)
       ]);
 
       setLeads(leadsRes.leads || []);
@@ -89,6 +96,7 @@ export default function App() {
         totalPages: leadsRes.totalPages
       });
       setStats(statsRes);
+      if (metaRes) setSearchSetsMeta(metaRes);
     } catch (err) {
       console.error('Error loading CRM data:', err);
     } finally {
@@ -100,14 +108,13 @@ export default function App() {
     loadData();
   }, [loadData]);
 
-  // Stage change handler (instant update with optimistic update)
+  // Stage change handler (optimistic update)
   const handleStageChange = async (id, newStatus) => {
     try {
       setLeads(prev =>
         prev.map(l => (l.id === id ? { ...l, status: newStatus } : l))
       );
       await updateLead(id, { status: newStatus });
-      // Refresh stats in background
       const newStats = await fetchStats();
       setStats(newStats);
     } catch (err) {
@@ -156,9 +163,15 @@ export default function App() {
     const selectedLeads = leads.filter(l => selectedIds.includes(l.id));
     if (selectedLeads.length === 0) return;
 
-    const headers = ["ID", "Company Name", "Vertical", "City", "Sub-region", "Phone", "Target Role", "Contact Person", "Primary AV Need", "Priority", "Stage", "Deal Value"];
+    const headers = [
+      "ID", "Search Name", "Timestamp", "Company Name", "Vertical", "City",
+      "Sub-region", "Phone", "Target Role", "Contact Person",
+      "Primary AV Need", "Priority", "Stage", "Deal Value"
+    ];
     const rows = selectedLeads.map(l => [
       `"${l.id}"`,
+      `"${l.search_name || ''}"`,
+      `"${l.created_at || ''}"`,
       `"${l.company_name}"`,
       `"${l.vertical}"`,
       `"${l.city}"`,
@@ -182,7 +195,7 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  // Pitch modal opener
+  // Pitch modal opener (keeps row-level pitch modal working!)
   const handleOpenPitchModal = (lead, tab = 'email') => {
     setSelectedLeadForPitch(lead);
     setPitchInitialTab(tab);
@@ -221,8 +234,9 @@ export default function App() {
       city: 'all',
       priority: 'all',
       status: 'all',
+      search_name: 'all',
       page: 1,
-      limit: 100
+      limit: filters.limit || 20
     });
   };
 
@@ -231,92 +245,144 @@ export default function App() {
     setFilters(prev => ({ ...prev, page: newPage }));
   };
 
+  // Limit change (20, 50, 100, 200)
+  const handleLimitChange = (newLimit) => {
+    setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }));
+  };
+
   // Sort change
   const handleSortChange = (col, order) => {
     setSortBy(col);
     setSortOrder(order);
   };
 
+  // Quick filter by Search Name
+  const handleFilterBySearchName = (name) => {
+    setActiveView('table');
+    setFilters(prev => ({ ...prev, search_name: name, page: 1 }));
+  };
+
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Top Header */}
-      <Header
+    <div className="min-h-screen bg-slate-50/50 flex">
+      
+      {/* REQUIREMENT 1: Left Menu Bar (Sidebar) */}
+      <Sidebar
+        activeView={activeView}
+        setActiveView={setActiveView}
+        onOpenGenerateModal={handleOpenGenerateModal}
+        onOpenAddModal={handleOpenAddModal}
+        onOpenImportModal={() => setImportModalOpen(true)}
+        totalResults={pagination.total}
         stats={stats}
-        onRefresh={loadData}
-        loading={loading}
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Content Layout with padding-left for Sidebar */}
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
         
-        {/* SECTION 1 & 2: Action Toolbar */}
-        <ActionToolbar
-          activeView={activeView}
-          setActiveView={setActiveView}
-          onOpenGenerateModal={handleOpenGenerateModal}
-          onOpenAddModal={handleOpenAddModal}
-          onOpenImportModal={() => setImportModalOpen(true)}
-          totalResults={pagination.total}
+        {/* Top Header */}
+        <Header
+          stats={stats}
+          onRefresh={loadData}
+          loading={loading}
+          onToggleMobileMenu={() => setMobileSidebarOpen(true)}
         />
 
-        {/* SECTION 3: Smart Filter Presets (Only in Table or Kanban views) */}
-        {activeView !== 'analytics' && (
-          <FilterBar
-            filters={filters}
-            setFilters={setFilters}
-            onResetFilters={handleResetFilters}
-          />
-        )}
+        {/* Main Content Area */}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          
+          {/* Smart Filter Presets Ribbon (Only shown in Table or Kanban views) */}
+          {(activeView === 'table' || activeView === 'kanban') && (
+            <FilterBar
+              filters={filters}
+              setFilters={setFilters}
+              onResetFilters={handleResetFilters}
+              searchSets={searchSetsMeta?.searchSets || []}
+            />
+          )}
 
-        {/* View Switching */}
-        {activeView === 'table' && (
-          <TableView
-            leads={leads}
-            loading={loading}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
-            onStageChange={handleStageChange}
-            onOpenPitchModal={handleOpenPitchModal}
-            onOpenActivityModal={handleOpenActivityModal}
-            onOpenEditModal={handleOpenEditModal}
-            onDeleteLead={handleDeleteLead}
-            pagination={pagination}
-            onPageChange={handlePageChange}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={handleSortChange}
-          />
-        )}
+          {/* VIEW 1: Table View (with Search Name, Timestamp & 20/50/100/200 pagination) */}
+          {activeView === 'table' && (
+            <TableView
+              leads={leads}
+              loading={loading}
+              selectedIds={selectedIds}
+              setSelectedIds={setSelectedIds}
+              onStageChange={handleStageChange}
+              onOpenPitchModal={handleOpenPitchModal}
+              onOpenActivityModal={handleOpenActivityModal}
+              onOpenEditModal={handleOpenEditModal}
+              onDeleteLead={handleDeleteLead}
+              pagination={pagination}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
+              onFilterBySearchName={handleFilterBySearchName}
+            />
+          )}
 
-        {activeView === 'kanban' && (
-          <KanbanView
-            leads={leads}
-            onStageChange={handleStageChange}
-            onOpenPitchModal={handleOpenPitchModal}
-            onOpenActivityModal={handleOpenActivityModal}
-            onOpenEditModal={handleOpenEditModal}
-          />
-        )}
+          {/* VIEW 2: Kanban Pipeline View */}
+          {activeView === 'kanban' && (
+            <KanbanView
+              leads={leads}
+              onStageChange={handleStageChange}
+              onOpenPitchModal={handleOpenPitchModal}
+              onOpenActivityModal={handleOpenActivityModal}
+              onOpenEditModal={handleOpenEditModal}
+            />
+          )}
 
-        {activeView === 'analytics' && (
-          <AnalyticsView
-            stats={stats}
-            onOpenPitchModal={handleOpenPitchModal}
-          />
-        )}
+          {/* VIEW 3: Analytics Dashboard View */}
+          {activeView === 'analytics' && (
+            <AnalyticsView
+              stats={stats}
+              onOpenPitchModal={handleOpenPitchModal}
+            />
+          )}
 
-      </main>
+          {/* VIEW 4: Dedicated Pitch Generator for All Platforms (Requirement 2) */}
+          {activeView === 'pitch' && (
+            <PitchGeneratorView
+              leads={leads}
+              onLeadActivityLogged={loadData}
+            />
+          )}
 
-      {/* SECTION 4: Floating Batch Action Bar */}
-      <BatchActionBar
-        selectedCount={selectedIds.length}
-        onClearSelection={() => setSelectedIds([])}
-        onBatchUpdateStatus={handleBatchUpdateStatus}
-        onBatchDelete={handleBatchDelete}
-        onExportSelected={handleExportSelected}
-      />
+          {/* VIEW 5: Leads by Search Set Section with Dynamic Cascading Filters (Requirement 7) */}
+          {activeView === 'search_sets' && (
+            <LeadsBySearchSetView
+              onOpenPitchModal={handleOpenPitchModal}
+              onOpenActivityModal={handleOpenActivityModal}
+              onOpenEditModal={handleOpenEditModal}
+              onStageChange={handleStageChange}
+            />
+          )}
 
-      {/* Modals */}
+        </main>
+
+        {/* Floating Batch Action Bar */}
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          onClearSelection={() => setSelectedIds([])}
+          onBatchUpdateStatus={handleBatchUpdateStatus}
+          onBatchDelete={handleBatchDelete}
+          onExportSelected={handleExportSelected}
+        />
+
+        {/* Footer */}
+        <footer className="py-5 border-t border-slate-200/60 bg-white/40 text-center text-xs text-slate-400">
+          <p>
+            Collabsight Technologies Pvt Ltd • Audio-Visual System Integration CRM • Kalyan & Thane, MMR
+          </p>
+        </footer>
+
+      </div>
+
+      {/* MODALS */}
+      {/* 1. Generate Leads Modal (Pan India custom search + Search Name label) */}
       <GenerateLeadsModal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
@@ -324,6 +390,7 @@ export default function App() {
         onSuccess={loadData}
       />
 
+      {/* 2. Row-Level Pitch Modal (Maintained as requested) */}
       <PitchOutreachModal
         isOpen={pitchModalOpen}
         onClose={() => setPitchModalOpen(false)}
@@ -331,6 +398,7 @@ export default function App() {
         initialTab={pitchInitialTab}
       />
 
+      {/* 3. Add / Edit Lead Modal */}
       <AddLeadModal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
@@ -338,6 +406,7 @@ export default function App() {
         onSuccess={loadData}
       />
 
+      {/* 4. Activity Log Modal */}
       <ActivityLogModal
         isOpen={activityModalOpen}
         onClose={() => setActivityModalOpen(false)}
@@ -345,18 +414,13 @@ export default function App() {
         onUpdated={loadData}
       />
 
+      {/* 5. Import CSV Modal */}
       <ImportCsvModal
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         onSuccess={loadData}
       />
 
-      {/* Footer Note */}
-      <footer className="py-6 border-t border-slate-200/60 bg-white/40 text-center text-xs text-slate-400">
-        <p>
-          Collabsight Technologies Pvt Ltd • Audio-Visual System Integration CRM • Kalyan & Thane, MMR
-        </p>
-      </footer>
     </div>
   );
 }

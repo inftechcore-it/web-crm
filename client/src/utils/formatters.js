@@ -84,3 +84,21 @@ export const CITY_OPTIONS = [
   { value: 'Nagpur', label: 'Nagpur' },
   { value: 'Surat', label: 'Surat' }
 ];
+
+export function formatDateTime(dateStr) {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}

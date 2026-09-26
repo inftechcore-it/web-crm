@@ -11,6 +11,8 @@ function getLeads({
   city = '',
   priority = '',
   status = '',
+  search_name = '',
+  date_range = '',
   sortBy = 'created_at',
   sortOrder = 'DESC',
   page = 1,
@@ -26,6 +28,7 @@ function getLeads({
       sub_region LIKE @search OR
       suggested_contact_name LIKE @search OR
       primary_av_need LIKE @search OR
+      search_name LIKE @search OR
       notes LIKE @search
     )`);
     params.search = `%${search.trim()}%`;
@@ -51,10 +54,35 @@ function getLeads({
     params.status = status;
   }
 
+  if (search_name && search_name !== 'all') {
+    if (search_name === '__unlabeled__') {
+      conditions.push(`(search_name IS NULL OR search_name = '')`);
+    } else {
+      conditions.push(`search_name = @search_name`);
+      params.search_name = search_name;
+    }
+  }
+
+  if (date_range && date_range !== 'all') {
+    if (date_range === 'today') {
+      conditions.push(`date(created_at) = date('now')`);
+    } else if (date_range === 'yesterday') {
+      conditions.push(`date(created_at) = date('now', '-1 day')`);
+    } else if (date_range === 'last_7_days') {
+      conditions.push(`created_at >= datetime('now', '-7 days')`);
+    } else if (date_range === 'last_30_days') {
+      conditions.push(`created_at >= datetime('now', '-30 days')`);
+    } else {
+      // Direct YYYY-MM-DD
+      conditions.push(`date(created_at) = @date_range`);
+      params.date_range = date_range;
+    }
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Validate sort field
-  const allowedSortCols = ['company_name', 'vertical', 'city', 'priority', 'status', 'deal_value', 'created_at'];
+  const allowedSortCols = ['company_name', 'vertical', 'city', 'priority', 'status', 'deal_value', 'created_at', 'search_name'];
   const safeSortCol = allowedSortCols.includes(sortBy) ? sortBy : 'created_at';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -101,11 +129,11 @@ function createLead(leadData) {
     INSERT INTO leads (
       id, company_name, vertical, city, sub_region, address, phone,
       website, target_role, suggested_contact_name, primary_av_need,
-      pitch_angle, budget_tier, priority, status, deal_value, notes, created_at, updated_at
+      pitch_angle, budget_tier, priority, status, deal_value, notes, search_name, created_at, updated_at
     ) VALUES (
       @id, @company_name, @vertical, @city, @sub_region, @address, @phone,
       @website, @target_role, @suggested_contact_name, @primary_av_need,
-      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes,
+      @pitch_angle, @budget_tier, @priority, @status, @deal_value, @notes, @search_name,
       datetime('now'), datetime('now')
     )
   `);
@@ -127,7 +155,8 @@ function createLead(leadData) {
     priority: leadData.priority || 'Warm',
     status: leadData.status || 'New',
     deal_value: Number(leadData.deal_value || 0),
-    notes: leadData.notes || ''
+    notes: leadData.notes || '',
+    search_name: leadData.search_name || ''
   });
 
   return getLeadById(id);
@@ -140,7 +169,7 @@ function updateLead(id, updates) {
   const allowedFields = [
     'company_name', 'vertical', 'city', 'sub_region', 'address', 'phone',
     'website', 'target_role', 'suggested_contact_name', 'primary_av_need',
-    'pitch_angle', 'budget_tier', 'priority', 'status', 'deal_value', 'notes'
+    'pitch_angle', 'budget_tier', 'priority', 'status', 'deal_value', 'notes', 'search_name'
   ];
 
   const setClauses = [];
@@ -279,6 +308,65 @@ function getStats() {
   };
 }
 
+function getSearchSetsMeta() {
+  const searchSets = db.prepare(`
+    SELECT
+      COALESCE(NULLIF(search_name, ''), 'Uncategorized') as search_name,
+      COUNT(*) as count,
+      MAX(created_at) as last_created,
+      ROUND(SUM(deal_value), 2) as total_value
+    FROM leads
+    GROUP BY COALESCE(NULLIF(search_name, ''), 'Uncategorized')
+    ORDER BY last_created DESC
+  `).all();
+
+  const categories = db.prepare(`
+    SELECT
+      vertical,
+      COUNT(*) as count,
+      ROUND(SUM(deal_value), 2) as total_value
+    FROM leads
+    GROUP BY vertical
+    ORDER BY count DESC
+  `).all();
+
+  const dates = db.prepare(`
+    SELECT
+      strftime('%Y-%m-%d', created_at) as date_str,
+      COUNT(*) as count
+    FROM leads
+    GROUP BY date_str
+    ORDER BY date_str DESC
+    LIMIT 30
+  `).all();
+
+  const statuses = db.prepare(`
+    SELECT
+      status,
+      COUNT(*) as count
+    FROM leads
+    GROUP BY status
+    ORDER BY count DESC
+  `).all();
+
+  const cities = db.prepare(`
+    SELECT
+      city,
+      COUNT(*) as count
+    FROM leads
+    GROUP BY city
+    ORDER BY count DESC
+  `).all();
+
+  return {
+    searchSets,
+    categories,
+    dates,
+    statuses,
+    cities
+  };
+}
+
 module.exports = {
   getLeads,
   getLeadById,
@@ -288,5 +376,6 @@ module.exports = {
   batchDelete,
   batchUpdateStatus,
   addActivity,
-  getStats
+  getStats,
+  getSearchSetsMeta
 };

@@ -59,6 +59,15 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_activities_lead ON activities(lead_id);
   `);
 
+  // Safe schema migration for search_name column
+  const leadCols = db.prepare("PRAGMA table_info(leads)").all();
+  if (!leadCols.some(col => col.name === 'search_name')) {
+    db.exec(`ALTER TABLE leads ADD COLUMN search_name TEXT;`);
+    console.log('Added search_name column to leads table');
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_search_name ON leads(search_name);`);
+
   console.log('SQL Database initialized successfully at:', dbPath);
 }
 

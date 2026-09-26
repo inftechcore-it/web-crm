@@ -12,13 +12,18 @@ import {
   ArrowUpDown,
   History,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Tag,
+  Clock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   formatCurrencyLakhs,
   formatVerticalName,
   getPriorityBadgeClass,
   getStatusBadgeClass,
+  formatDateTime,
   PIPELINE_STAGES
 } from '../utils/formatters';
 
@@ -34,9 +39,11 @@ export default function TableView({
   onDeleteLead,
   pagination = {},
   onPageChange,
+  onLimitChange,
   sortBy,
   sortOrder,
-  onSortChange
+  onSortChange,
+  onFilterBySearchName
 }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
@@ -68,12 +75,12 @@ export default function TableView({
     <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-sky-100 shadow-xs overflow-hidden">
       
       {/* Table Container */}
-      <div className="overflow-x-auto min-h-[400px]">
+      <div className="overflow-x-auto min-h-[420px]">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-sky-100/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               
-              <th className="py-3.5 px-4 w-10 text-center">
+              <th className="py-3.5 px-3 w-10 text-center">
                 <input
                   type="checkbox"
                   checked={isAllSelected}
@@ -82,9 +89,33 @@ export default function TableView({
                 />
               </th>
 
+              {/* REQUIREMENT 4: Search Name Column */}
+              <th
+                onClick={() => handleSort('search_name')}
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none min-w-[140px]"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Tag className="w-3 h-3 text-sky-600" />
+                  <span>Search Name</span>
+                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
+
+              {/* REQUIREMENT 5: Timestamp Column */}
+              <th
+                onClick={() => handleSort('created_at')}
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none min-w-[140px]"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3 text-sky-600" />
+                  <span>Timestamp</span>
+                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
+
               <th
                 onClick={() => handleSort('company_name')}
-                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none"
+                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none min-w-[180px]"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Company & Location</span>
@@ -94,7 +125,7 @@ export default function TableView({
 
               <th
                 onClick={() => handleSort('vertical')}
-                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none"
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none min-w-[130px]"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Vertical</span>
@@ -102,13 +133,13 @@ export default function TableView({
                 </div>
               </th>
 
-              <th className="py-3.5 px-4">Contact & Role</th>
+              <th className="py-3.5 px-3 min-w-[130px]">Contact & Role</th>
 
-              <th className="py-3.5 px-4 min-w-[200px]">Primary AV Requirement</th>
+              <th className="py-3.5 px-4 min-w-[190px]">Primary AV Requirement</th>
 
               <th
                 onClick={() => handleSort('deal_value')}
-                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none"
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Deal Est.</span>
@@ -118,7 +149,7 @@ export default function TableView({
 
               <th
                 onClick={() => handleSort('priority')}
-                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none"
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Priority</span>
@@ -128,7 +159,7 @@ export default function TableView({
 
               <th
                 onClick={() => handleSort('status')}
-                className="py-3.5 px-4 cursor-pointer hover:text-sky-700 transition-colors select-none"
+                className="py-3.5 px-3 cursor-pointer hover:text-sky-700 transition-colors select-none min-w-[120px]"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Pipeline Stage</span>
@@ -136,8 +167,8 @@ export default function TableView({
                 </div>
               </th>
 
-              <th className="py-3.5 px-4 text-right pr-6">
-                <span>Section 5: Actions</span>
+              <th className="py-3.5 px-4 text-right pr-6 min-w-[140px]">
+                <span>Actions</span>
               </th>
             </tr>
           </thead>
@@ -145,21 +176,21 @@ export default function TableView({
           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
             {loading ? (
               <tr>
-                <td colSpan="9" className="py-16 text-center text-slate-400">
+                <td colSpan="11" className="py-16 text-center text-slate-400">
                   <div className="inline-flex items-center gap-2 text-sky-600 font-semibold text-sm">
                     <div className="w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span>Loading Collabsight CRM Leads...</span>
+                    <span>Loading CRM Leads...</span>
                   </div>
                 </td>
               </tr>
             ) : leads.length === 0 ? (
               <tr>
-                <td colSpan="9" className="py-16 text-center text-slate-400">
+                <td colSpan="11" className="py-16 text-center text-slate-400">
                   <div className="max-w-sm mx-auto space-y-2">
-                    <AlertCircle className="w-8 h-8 text-sky-400 mx-auto" />
-                    <p className="font-semibold text-slate-700 text-sm">No leads match your active filters</p>
+                    <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-600">No leads match your active filters</p>
                     <p className="text-xs text-slate-400">
-                      Try clearing search parameters, or fetch new leads using the Ingestion section above.
+                      Try resetting filters or fetch fresh leads using the menu on the left.
                     </p>
                   </div>
                 </td>
@@ -171,12 +202,12 @@ export default function TableView({
                 return (
                   <tr
                     key={lead.id}
-                    className={`hover:bg-sky-50/50 transition-colors ${
-                      isSelected ? 'bg-sky-50/80' : ''
+                    className={`hover:bg-sky-50/40 transition-colors group ${
+                      isSelected ? 'bg-sky-50/70' : ''
                     }`}
                   >
                     {/* Checkbox */}
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-3 text-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -185,16 +216,36 @@ export default function TableView({
                       />
                     </td>
 
+                    {/* REQUIREMENT 4: Search Name Badge */}
+                    <td className="py-3.5 px-3">
+                      {lead.search_name ? (
+                        <button
+                          type="button"
+                          onClick={() => onFilterBySearchName && onFilterBySearchName(lead.search_name)}
+                          title={`Filter by Search Set: ${lead.search_name}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 hover:bg-indigo-100 transition-all text-left max-w-[150px] truncate cursor-pointer"
+                        >
+                          <Tag className="w-2.5 h-2.5 shrink-0 text-indigo-500" />
+                          <span className="truncate">{lead.search_name}</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">Unlabeled</span>
+                      )}
+                    </td>
+
+                    {/* REQUIREMENT 5: Timestamp */}
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{formatDateTime(lead.created_at)}</span>
+                      </div>
+                    </td>
+
                     {/* Company & Location */}
                     <td className="py-3.5 px-4">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => onOpenPitchModal(lead, 'email')}
-                            className="font-bold text-slate-900 hover:text-sky-600 text-left transition-colors cursor-pointer"
-                          >
-                            {lead.company_name}
-                          </button>
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{lead.company_name}</span>
                           {lead.website && (
                             <a
                               href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
@@ -212,7 +263,7 @@ export default function TableView({
                           {lead.sub_region && lead.sub_region !== lead.city && (
                             <>
                               <span className="text-slate-300">•</span>
-                              <span className="truncate max-w-[180px]">{lead.sub_region}</span>
+                              <span className="truncate max-w-[160px]">{lead.sub_region}</span>
                             </>
                           )}
                         </div>
@@ -220,18 +271,18 @@ export default function TableView({
                     </td>
 
                     {/* Vertical */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                         {formatVerticalName(lead.vertical)}
                       </span>
                     </td>
 
                     {/* Contact & Role */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-800">
+                    <td className="py-3.5 px-3">
+                      <div className="font-medium text-slate-800 truncate max-w-[130px]">
                         {lead.suggested_contact_name || 'Key Decision Maker'}
                       </div>
-                      <div className="text-[11px] text-slate-400 font-normal truncate max-w-[150px]">
+                      <div className="text-[11px] text-slate-400 font-normal truncate max-w-[130px]">
                         {lead.target_role || 'IT / Facility Admin'}
                       </div>
                     </td>
@@ -241,13 +292,13 @@ export default function TableView({
                       <div className="text-xs text-slate-700 font-medium line-clamp-2" title={lead.primary_av_need}>
                         {lead.primary_av_need}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-normal mt-0.5 truncate max-w-[220px]">
+                      <div className="text-[10px] text-slate-400 font-normal mt-0.5 truncate max-w-[200px]">
                         {lead.pitch_angle}
                       </div>
                     </td>
 
                     {/* Deal Value */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <div className="font-bold text-sky-800">
                         {formatCurrencyLakhs(lead.deal_value)}
                       </div>
@@ -257,14 +308,14 @@ export default function TableView({
                     </td>
 
                     {/* Priority Badge */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getPriorityBadgeClass(lead.priority)}`}>
                         {lead.priority}
                       </span>
                     </td>
 
                     {/* Inline Pipeline Stage Dropdown */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <select
                         value={lead.status}
                         onChange={(e) => onStageChange(lead.id, e.target.value)}
@@ -278,11 +329,11 @@ export default function TableView({
                       </select>
                     </td>
 
-                    {/* SECTION 5: OUTREACH & QUICK ACTIONS */}
+                    {/* Row-Level Actions (Keeping row-level pitch generator as requested!) */}
                     <td className="py-3.5 px-4 text-right pr-6">
-                      <div className="inline-flex items-center gap-1 justify-end">
+                      <div className="flex items-center justify-end gap-1">
                         
-                        {/* 1-Click Cold Email */}
+                        {/* Cold Email Pitch */}
                         <button
                           onClick={() => onOpenPitchModal(lead, 'email')}
                           title="Generate & Copy Tailored Cold Email"
@@ -291,10 +342,10 @@ export default function TableView({
                           <Mail className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Direct WhatsApp Pitch */}
+                        {/* WhatsApp Outreach */}
                         <button
                           onClick={() => onOpenPitchModal(lead, 'whatsapp')}
-                          title="Generate WhatsApp Pitch & Open Web Link"
+                          title="Send One-Click WhatsApp AV Pitch"
                           className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-200 transition-all cursor-pointer"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
@@ -335,13 +386,13 @@ export default function TableView({
                                 onDeleteLead(lead.id);
                                 setDeleteConfirmId(null);
                               }}
-                              className="text-[10px] font-bold text-rose-700 hover:underline"
+                              className="text-[10px] font-bold text-rose-700 hover:underline cursor-pointer"
                             >
                               Del
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(null)}
-                              className="text-[10px] text-slate-400 hover:text-slate-600"
+                              className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
                             >
                               ✕
                             </button>
@@ -367,35 +418,61 @@ export default function TableView({
         </table>
       </div>
 
-      {/* Pagination Footer */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="py-3 px-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-600">
+      {/* REQUIREMENT 6: Enhanced Pagination Footer with Limit Dropdown (20, 50, 100, 200) and Arrow Controls */}
+      <div className="py-3 px-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        
+        {/* Left: Range and Total Counts */}
+        <div className="flex items-center gap-3">
           <div>
-            Showing <span className="font-semibold text-slate-900">{leads.length}</span> of{' '}
-            <span className="font-semibold text-slate-900">{pagination.total}</span> leads
+            Showing <span className="font-bold text-slate-900">{leads.length > 0 ? ((pagination.page - 1) * pagination.limit + 1) : 0}</span> to{' '}
+            <span className="font-bold text-slate-900">{Math.min(pagination.page * pagination.limit, pagination.total || 0)}</span> of{' '}
+            <span className="font-bold text-sky-700">{pagination.total || 0}</span> leads
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onPageChange(pagination.page - 1)}
-              disabled={pagination.page <= 1}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all"
+          {/* Rows per page selector: 20, 50, 100, 200 */}
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+            <span className="text-[11px] text-slate-500 font-medium">Show:</span>
+            <select
+              value={pagination.limit || 100}
+              onChange={(e) => onLimitChange && onLimitChange(Number(e.target.value))}
+              className="py-1 px-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:border-sky-500 outline-hidden cursor-pointer"
             >
-              Previous
-            </button>
-            <span className="font-medium text-slate-700">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
-            <button
-              onClick={() => onPageChange(pagination.page + 1)}
-              disabled={pagination.page >= pagination.totalPages}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all"
-            >
-              Next
-            </button>
+              <option value="20">20 / page</option>
+              <option value="50">50 / page</option>
+              <option value="100">100 / page</option>
+              <option value="200">200 / page</option>
+            </select>
           </div>
         </div>
-      )}
+
+        {/* Right: Page Navigation with Arrow Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onPageChange(pagination.page - 1)}
+            disabled={pagination.page <= 1}
+            title="Previous Page"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Previous</span>
+          </button>
+
+          <div className="px-3 py-1 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 text-xs shadow-2xs">
+            Page {pagination.page || 1} of {Math.max(1, pagination.totalPages || 1)}
+          </div>
+
+          <button
+            onClick={() => onPageChange(pagination.page + 1)}
+            disabled={pagination.page >= (pagination.totalPages || 1)}
+            title="Next Page"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
+          >
+            <span>Next</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+      </div>
 
     </div>
   );
