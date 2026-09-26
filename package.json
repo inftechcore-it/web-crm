@@ -1,0 +1,13 @@
+{
+  "name": "collabsight-crm-web",
+  "version": "1.0.0",
+  "description": "Collabsight Technologies AV CRM Web Application",
+  "scripts": {
+    "start": "node server/server.js",
+    "server": "npm --prefix server start",
+    "server:dev": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "reseed": "npm --prefix server run seed"
+  }
+}
