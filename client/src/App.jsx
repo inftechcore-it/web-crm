@@ -7,6 +7,7 @@ import KanbanView from './components/KanbanView';
 import AnalyticsView from './components/AnalyticsView';
 import PitchGeneratorView from './components/PitchGeneratorView';
 import LeadsBySearchSetView from './components/LeadsBySearchSetView';
+import GenerateLeadsView from './components/GenerateLeadsView';
 import BatchActionBar from './components/BatchActionBar';
 
 import GenerateLeadsModal from './components/modals/GenerateLeadsModal';
@@ -14,6 +15,8 @@ import PitchOutreachModal from './components/modals/PitchOutreachModal';
 import AddLeadModal from './components/modals/AddLeadModal';
 import ActivityLogModal from './components/modals/ActivityLogModal';
 import ImportCsvModal from './components/modals/ImportCsvModal';
+
+import { Table, Columns3 } from 'lucide-react';
 
 import {
   fetchLeads,
@@ -26,8 +29,9 @@ import {
 } from './services/api';
 
 export default function App() {
-  // Navigation & View Mode: 'table' | 'kanban' | 'analytics' | 'pitch' | 'search_sets'
-  const [activeView, setActiveView] = useState('table');
+  // Navigation: 'generate' | 'all_leads' | 'pitch' | 'search_sets' | 'analytics'
+  const [activeView, setActiveView] = useState('all_leads');
+  const [allLeadsDisplayMode, setAllLeadsDisplayMode] = useState('table'); // 'table' | 'kanban'
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Leads & Pipeline Data
@@ -46,7 +50,7 @@ export default function App() {
     status: 'all',
     search_name: 'all',
     page: 1,
-    limit: 20 // Default to 20 for crisp pagination
+    limit: 20
   });
 
   const [sortBy, setSortBy] = useState('created_at');
@@ -258,20 +262,20 @@ export default function App() {
 
   // Quick filter by Search Name
   const handleFilterBySearchName = (name) => {
-    setActiveView('table');
+    setActiveView('all_leads');
+    setAllLeadsDisplayMode('table');
     setFilters(prev => ({ ...prev, search_name: name, page: 1 }));
   };
+
+  const isAllLeadsActive = activeView === 'all_leads' || activeView === 'table' || activeView === 'kanban';
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex">
       
-      {/* REQUIREMENT 1: Left Menu Bar (Sidebar) */}
+      {/* 5-Item Navigation Menu Bar (Sidebar) */}
       <Sidebar
         activeView={activeView}
         setActiveView={setActiveView}
-        onOpenGenerateModal={handleOpenGenerateModal}
-        onOpenAddModal={handleOpenAddModal}
-        onOpenImportModal={() => setImportModalOpen(true)}
         totalResults={pagination.total}
         stats={stats}
         mobileOpen={mobileSidebarOpen}
@@ -292,58 +296,107 @@ export default function App() {
         {/* Main Content Area */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           
-          {/* Smart Filter Presets Ribbon (Only shown in Table or Kanban views) */}
-          {(activeView === 'table' || activeView === 'kanban') && (
-            <FilterBar
-              filters={filters}
-              setFilters={setFilters}
-              onResetFilters={handleResetFilters}
-              searchSets={searchSetsMeta?.searchSets || []}
+          {/* 1. GENERATE LEADS VIEW (Contains the 3 requested methods) */}
+          {activeView === 'generate' && (
+            <GenerateLeadsView
+              onSuccess={loadData}
+              onOpenAddModal={handleOpenAddModal}
+              onOpenImportModal={() => setImportModalOpen(true)}
+              onNavigateToAllLeads={() => setActiveView('all_leads')}
             />
           )}
 
-          {/* VIEW 1: Table View (with Search Name, Timestamp & 20/50/100/200 pagination) */}
-          {activeView === 'table' && (
-            <TableView
-              leads={leads}
-              loading={loading}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              onStageChange={handleStageChange}
-              onOpenPitchModal={handleOpenPitchModal}
-              onOpenActivityModal={handleOpenActivityModal}
-              onOpenEditModal={handleOpenEditModal}
-              onDeleteLead={handleDeleteLead}
-              pagination={pagination}
-              onPageChange={handlePageChange}
-              onLimitChange={handleLimitChange}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onSortChange={handleSortChange}
-              onFilterBySearchName={handleFilterBySearchName}
-            />
+          {/* 2. ALL LEADS VIEW (Table & Kanban Views with Filters & Pagination) */}
+          {isAllLeadsActive && (
+            <div className="space-y-4">
+              
+              {/* Header for All Leads with Table/Kanban Switcher */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 backdrop-blur-md rounded-2xl border border-sky-100 p-3.5 shadow-2xs">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 font-heading flex items-center gap-2">
+                    <span>2. All Leads</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-semibold">
+                      {pagination.total} Total
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Comprehensive lead pipeline with Search Set tags and live timestamps
+                  </p>
+                </div>
+
+                {/* Table vs Kanban Toggle */}
+                <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200 shadow-inner self-start sm:self-auto">
+                  <button
+                    onClick={() => setAllLeadsDisplayMode('table')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      allLeadsDisplayMode === 'table'
+                        ? 'bg-white text-sky-700 shadow-xs border border-sky-100'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>Table View</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAllLeadsDisplayMode('kanban')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      allLeadsDisplayMode === 'kanban'
+                        ? 'bg-white text-sky-700 shadow-xs border border-sky-100'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Columns3 className="w-3.5 h-3.5" />
+                    <span>Kanban View</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Bar */}
+              <FilterBar
+                filters={filters}
+                setFilters={setFilters}
+                onResetFilters={handleResetFilters}
+                searchSets={searchSetsMeta?.searchSets || []}
+              />
+
+              {/* Table Mode */}
+              {allLeadsDisplayMode === 'table' && (
+                <TableView
+                  leads={leads}
+                  loading={loading}
+                  selectedIds={selectedIds}
+                  setSelectedIds={setSelectedIds}
+                  onStageChange={handleStageChange}
+                  onOpenPitchModal={handleOpenPitchModal}
+                  onOpenActivityModal={handleOpenActivityModal}
+                  onOpenEditModal={handleOpenEditModal}
+                  onDeleteLead={handleDeleteLead}
+                  pagination={pagination}
+                  onPageChange={handlePageChange}
+                  onLimitChange={handleLimitChange}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSortChange={handleSortChange}
+                  onFilterBySearchName={handleFilterBySearchName}
+                />
+              )}
+
+              {/* Kanban Mode */}
+              {allLeadsDisplayMode === 'kanban' && (
+                <KanbanView
+                  leads={leads}
+                  onStageChange={handleStageChange}
+                  onOpenPitchModal={handleOpenPitchModal}
+                  onOpenActivityModal={handleOpenActivityModal}
+                  onOpenEditModal={handleOpenEditModal}
+                />
+              )}
+
+            </div>
           )}
 
-          {/* VIEW 2: Kanban Pipeline View */}
-          {activeView === 'kanban' && (
-            <KanbanView
-              leads={leads}
-              onStageChange={handleStageChange}
-              onOpenPitchModal={handleOpenPitchModal}
-              onOpenActivityModal={handleOpenActivityModal}
-              onOpenEditModal={handleOpenEditModal}
-            />
-          )}
-
-          {/* VIEW 3: Analytics Dashboard View */}
-          {activeView === 'analytics' && (
-            <AnalyticsView
-              stats={stats}
-              onOpenPitchModal={handleOpenPitchModal}
-            />
-          )}
-
-          {/* VIEW 4: Dedicated Pitch Generator for All Platforms (Requirement 2) */}
+          {/* 3. PITCH GENERATOR VIEW */}
           {activeView === 'pitch' && (
             <PitchGeneratorView
               leads={leads}
@@ -351,13 +404,21 @@ export default function App() {
             />
           )}
 
-          {/* VIEW 5: Leads by Search Set Section with Dynamic Cascading Filters (Requirement 7) */}
+          {/* 4. LEADS BY SEARCH SET VIEW */}
           {activeView === 'search_sets' && (
             <LeadsBySearchSetView
               onOpenPitchModal={handleOpenPitchModal}
               onOpenActivityModal={handleOpenActivityModal}
               onOpenEditModal={handleOpenEditModal}
               onStageChange={handleStageChange}
+            />
+          )}
+
+          {/* 5. ANALYTICS & INSIGHTS VIEW */}
+          {activeView === 'analytics' && (
+            <AnalyticsView
+              stats={stats}
+              onOpenPitchModal={handleOpenPitchModal}
             />
           )}
 
@@ -381,8 +442,7 @@ export default function App() {
 
       </div>
 
-      {/* MODALS */}
-      {/* 1. Generate Leads Modal (Pan India custom search + Search Name label) */}
+      {/* Modals */}
       <GenerateLeadsModal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
@@ -390,7 +450,6 @@ export default function App() {
         onSuccess={loadData}
       />
 
-      {/* 2. Row-Level Pitch Modal (Maintained as requested) */}
       <PitchOutreachModal
         isOpen={pitchModalOpen}
         onClose={() => setPitchModalOpen(false)}
@@ -398,7 +457,6 @@ export default function App() {
         initialTab={pitchInitialTab}
       />
 
-      {/* 3. Add / Edit Lead Modal */}
       <AddLeadModal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
@@ -406,7 +464,6 @@ export default function App() {
         onSuccess={loadData}
       />
 
-      {/* 4. Activity Log Modal */}
       <ActivityLogModal
         isOpen={activityModalOpen}
         onClose={() => setActivityModalOpen(false)}
@@ -414,7 +471,6 @@ export default function App() {
         onUpdated={loadData}
       />
 
-      {/* 5. Import CSV Modal */}
       <ImportCsvModal
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}

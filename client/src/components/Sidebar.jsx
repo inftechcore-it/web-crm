@@ -1,33 +1,59 @@
 import React from 'react';
 import {
   Tv,
-  Table,
-  Columns3,
-  BarChart3,
   Zap,
-  Globe,
-  Sparkles,
-  PlusCircle,
-  UploadCloud,
-  FileSpreadsheet,
-  Download,
+  Users,
   Target,
   SearchCheck,
+  BarChart3,
+  FileSpreadsheet,
+  Download,
   TrendingUp,
-  Flame,
   CheckCircle2,
-  X,
-  Menu
+  X
 } from 'lucide-react';
 import { EXPORT_EXCEL_URL, EXPORT_CSV_URL } from '../services/api';
 import { formatCurrencyLakhs } from '../utils/formatters';
 
+const NAV_ITEMS = [
+  {
+    id: 'generate',
+    label: '1. Generate Leads',
+    shortLabel: 'Generate Leads',
+    icon: Zap,
+    badge: '3 Sources'
+  },
+  {
+    id: 'all_leads',
+    label: '2. All Leads',
+    shortLabel: 'All Leads',
+    icon: Users,
+    showCount: true
+  },
+  {
+    id: 'pitch',
+    label: '3. Pitch Generator',
+    shortLabel: 'Pitch Generator',
+    icon: Target,
+    badge: 'Multi-Channel'
+  },
+  {
+    id: 'search_sets',
+    label: '4. Leads by Search Set',
+    shortLabel: 'Leads by Search Set',
+    icon: SearchCheck
+  },
+  {
+    id: 'analytics',
+    label: '5. Analytics & Insights',
+    shortLabel: 'Analytics & Insights',
+    icon: BarChart3
+  }
+];
+
 export default function Sidebar({
   activeView,
   setActiveView,
-  onOpenGenerateModal,
-  onOpenAddModal,
-  onOpenImportModal,
   totalResults = 0,
   stats,
   mobileOpen = false,
@@ -35,8 +61,8 @@ export default function Sidebar({
 }) {
   const overview = stats?.overview || {};
 
-  const handleNavClick = (view) => {
-    setActiveView(view);
+  const handleNavClick = (viewId) => {
+    setActiveView(viewId);
     if (setMobileOpen) setMobileOpen(false);
   };
 
@@ -50,7 +76,7 @@ export default function Sidebar({
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Main Sidebar Container */}
       <aside
         className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-slate-900 text-slate-100 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
@@ -67,7 +93,7 @@ export default function Sidebar({
               <div className="text-sm font-bold tracking-tight text-white font-heading">
                 Collabsight <span className="text-sky-400">AV CRM</span>
               </div>
-              <div className="text-[10px] text-slate-400">Audio-Visual Pipeline</div>
+              <div className="text-[10px] text-slate-400 font-medium">Pan India Lead Hub</div>
             </div>
           </div>
 
@@ -80,191 +106,82 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Scrollable Navigation Body */}
+        {/* Navigation Menu (The 5 Requested Sections) */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-          
-          {/* SECTION 2: VIEW MODES & WORKSPACES */}
-          <div>
-            <div className="px-3 mb-2 flex items-center justify-between text-[11px] font-bold text-sky-400 uppercase tracking-wider">
-              <span>Section 2: View Modes</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-            </div>
+          <div className="space-y-1.5">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                activeView === item.id ||
+                (item.id === 'all_leads' && (activeView === 'table' || activeView === 'kanban'));
 
-            <nav className="space-y-1">
-              {/* Table View */}
-              <button
-                onClick={() => handleNavClick('table')}
-                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeView === 'table'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Table className="w-4 h-4 shrink-0 text-sky-300" />
-                  <span>Table Grid</span>
-                </div>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  activeView === 'table' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {totalResults}
-                </span>
-              </button>
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                    isActive
+                      ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-500/25 ring-1 ring-white/20'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-sky-400'}`} />
+                    <span>{item.label}</span>
+                  </div>
 
-              {/* Kanban View */}
-              <button
-                onClick={() => handleNavClick('kanban')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeView === 'kanban'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Columns3 className="w-4 h-4 shrink-0 text-sky-300" />
-                <span>Kanban Board</span>
-              </button>
+                  {item.showCount && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-sky-400 border border-slate-700'
+                      }`}
+                    >
+                      {totalResults}
+                    </span>
+                  )}
 
-              {/* Analytics View */}
-              <button
-                onClick={() => handleNavClick('analytics')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeView === 'analytics'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 shrink-0 text-sky-300" />
-                <span>Analytics & Insights</span>
-              </button>
-
-              {/* REQUIREMENT 2: Dedicated Pitch Generator Section */}
-              <button
-                onClick={() => handleNavClick('pitch')}
-                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeView === 'pitch'
-                    ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Target className="w-4 h-4 shrink-0 text-indigo-400" />
-                  <span>Pitch Generator</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider font-extrabold bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.2 rounded-md">
-                  All-Platform
-                </span>
-              </button>
-
-              {/* REQUIREMENT 7: Leads by Search Set Section */}
-              <button
-                onClick={() => handleNavClick('search_sets')}
-                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  activeView === 'search_sets'
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <SearchCheck className="w-4 h-4 shrink-0 text-cyan-400" />
-                  <span>Leads by Search Set</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider font-extrabold bg-purple-500/30 text-purple-300 border border-purple-500/40 px-1.5 py-0.2 rounded-md">
-                  New
-                </span>
-              </button>
-            </nav>
+                  {item.badge && !item.showCount && (
+                    <span
+                      className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded-md ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700/80'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* SECTION 1: LEAD GENERATION & INGESTION */}
-          <div>
-            <div className="px-3 mb-2 flex items-center justify-between text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-              <span>Section 1: Ingestion</span>
-              <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-
-            <div className="space-y-1.5">
-              {/* Fetch Live OSM Leads (Requirement 3 & 4) */}
-              <button
-                onClick={() => {
-                  onOpenGenerateModal('osm');
-                  if (setMobileOpen) setMobileOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 rounded-xl transition-all cursor-pointer shadow-xs shadow-sky-500/20 group text-left"
-              >
-                <Globe className="w-4 h-4 text-sky-100 group-hover:rotate-12 transition-transform shrink-0" />
-                <div>
-                  <div>⚡ Fetch Live OSM Leads</div>
-                  <div className="text-[10px] text-sky-100/80 font-normal">Pan India Custom Search</div>
-                </div>
-              </button>
-
-              {/* Curated Generator */}
-              <button
-                onClick={() => {
-                  onOpenGenerateModal('curated');
-                  if (setMobileOpen) setMobileOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-slate-800/80 hover:bg-slate-800 hover:text-white border border-slate-700 rounded-xl transition-all cursor-pointer text-left"
-              >
-                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>🤖 Curated Seed Leads</span>
-              </button>
-
-              {/* Add Single Lead */}
-              <button
-                onClick={() => {
-                  onOpenAddModal();
-                  if (setMobileOpen) setMobileOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all cursor-pointer text-left"
-              >
-                <PlusCircle className="w-4 h-4 text-sky-400 shrink-0" />
-                <span>➕ Add Single Lead</span>
-              </button>
-
-              {/* Import CSV */}
-              <button
-                onClick={() => {
-                  onOpenImportModal();
-                  if (setMobileOpen) setMobileOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all cursor-pointer text-left"
-              >
-                <UploadCloud className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>📥 Import CSV Records</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Export Tools */}
-          <div>
-            <div className="px-3 mb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          {/* Quick Data Exports */}
+          <div className="pt-2 border-t border-slate-800/80">
+            <div className="px-3 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Export Pipelines
             </div>
             <div className="grid grid-cols-2 gap-2">
               <a
                 href={EXPORT_EXCEL_URL}
                 download
-                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-semibold transition-all border border-slate-700/60"
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-400 text-[11px] font-semibold transition-all border border-slate-700/60"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Excel</span>
+                <span>Excel (.xlsx)</span>
               </a>
 
               <a
                 href={EXPORT_CSV_URL}
                 download
-                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition-all border border-slate-700/60"
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition-all border border-slate-700/60"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>CSV</span>
+                <span>CSV (.csv)</span>
               </a>
             </div>
           </div>
-
         </div>
 
-        {/* Sidebar Footer: Quick Pipeline Metric Badge */}
+        {/* Sidebar Footer: Mini Pipeline Metrics */}
         <div className="p-3 border-t border-slate-800 bg-slate-950/60 text-xs">
           <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 space-y-1">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -279,7 +196,7 @@ export default function Sidebar({
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                Deals Won
+                Won Deals
               </span>
               <span className="font-semibold text-emerald-400">
                 {overview.wonLeadsCount || 0} ({overview.conversionRate || 0}%)
