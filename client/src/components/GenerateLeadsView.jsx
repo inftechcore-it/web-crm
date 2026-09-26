@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Sparkles,
   Globe,
@@ -17,9 +17,26 @@ import {
   ArrowRight,
   Phone,
   User,
-  Sliders
+  Sliders,
+  Landmark,
+  Layers,
+  FileCheck,
+  RefreshCw,
+  ExternalLink,
+  Filter
 } from 'lucide-react';
-import { generateLeads, createLead, importCsvLeads, fetchPlacesStatus, generateFromGooglePlaces } from '../services/api';
+import {
+  generateLeads,
+  createLead,
+  importCsvLeads,
+  fetchPlacesStatus,
+  generateFromGooglePlaces,
+  importMcaCsv,
+  importMsmeCsv,
+  previewDiscoveryCsv,
+  fetchDiscoveryJobs,
+  fetchDiscoveryStats
+} from '../services/api';
 import { VERTICAL_OPTIONS, CITY_OPTIONS } from '../utils/formatters';
 
 const PRESET_REGIONS = [
@@ -56,9 +73,32 @@ export default function GenerateLeadsView({
   const [genError, setGenError] = useState(null);
   const [placesStatus, setPlacesStatus] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchPlacesStatus().then(setPlacesStatus).catch(() => setPlacesStatus({ configured: false }));
   }, []);
+
+  // 4. Government Data Discovery State (MCA & Udyam MSME)
+  const [govTab, setGovTab] = useState('mca'); // 'mca' | 'msme'
+  const [govFile, setGovFile] = useState(null);
+  const [govDragging, setGovDragging] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [govImporting, setGovImporting] = useState(false);
+  const [activeJob, setActiveJob] = useState(null);
+  const [govSuccessSummary, setGovSuccessSummary] = useState(null);
+  const [govError, setGovError] = useState(null);
+  const [discoveryStats, setDiscoveryStats] = useState(null);
+
+  const loadDiscoveryStats = useCallback(async () => {
+    try {
+      const res = await fetchDiscoveryStats();
+      if (res.success) setDiscoveryStats(res.stats);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    loadDiscoveryStats();
+  }, [loadDiscoveryStats]);
 
   // 2. Quick Add Single Lead State
   const [quickLead, setQuickLead] = useState({
@@ -206,6 +246,77 @@ export default function GenerateLeadsView({
       }
     };
     reader.readAsText(file);
+  };
+
+  // Government File Drag & Drop / Selection
+  const handleGovFileSelect = async (file) => {
+    if (!file) return;
+    setGovFile(file);
+    setGovError(null);
+    setGovSuccessSummary(null);
+    setPreviewLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await previewDiscoveryCsv(formData, govTab);
+      setPreviewData(res);
+    } catch (err) {
+      console.error('Preview error:', err);
+      setGovError(err.message || 'Failed to preview CSV file');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleTabChange = (newTab) => {
+    setGovTab(newTab);
+    setGovFile(null);
+    setPreviewData(null);
+    setGovSuccessSummary(null);
+    setGovError(null);
+    setActiveJob(null);
+  };
+
+  // Trigger Government Data Stream & Poll Progress
+  const handleTriggerGovImport = async () => {
+    if (!govFile || govImporting) return;
+    setGovImporting(true);
+    setGovError(null);
+    setGovSuccessSummary(null);
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const jobsRes = await fetchDiscoveryJobs();
+        if (jobsRes.jobs && jobsRes.jobs.length > 0) {
+          const latest = jobsRes.jobs[0];
+          setActiveJob(latest);
+          if (latest.status === 'completed' || latest.status === 'failed') {
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', govFile);
+      const result = govTab === 'mca'
+        ? await importMcaCsv(formData)
+        : await importMsmeCsv(formData);
+
+      clearInterval(pollInterval);
+      setGovSuccessSummary(`Inserted ${result.inserted} new leads | Skipped ${result.skipped} duplicates | Errors: ${result.errors}`);
+      setActiveJob(null);
+      loadDiscoveryStats();
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      clearInterval(pollInterval);
+      console.error('Government import error:', err);
+      setGovError(err.message || 'Government data import failed');
+    } finally {
+      setGovImporting(false);
+    }
   };
 
   return (
@@ -660,6 +771,340 @@ export default function GenerateLeadsView({
           </div>
 
         </div>
+
+      </div>
+
+      {/* 4. GOVERNMENT DATA DISCOVERY ENGINE (MCA & UDYAM MSME) */}
+      <div className="bg-white rounded-3xl border border-sky-100 shadow-sm p-6 space-y-6">
+        
+        {/* Section Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200">
+              <Landmark className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  🏛️ Government Data Discovery Engine
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                  Official Registries
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bulk ingest verified companies from MCA Company Master & Udyam MSME with automated NIC vertical classification and director mapping.
+              </p>
+            </div>
+          </div>
+
+          {/* Aggregated Discovery Stats */}
+          {discoveryStats && (
+            <div className="flex items-center gap-3 text-xs">
+              <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <span className="text-slate-400 font-medium">MCA Imported: </span>
+                <span className="font-bold text-slate-800">{discoveryStats.total_mca_imported}</span>
+              </div>
+              <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <span className="text-slate-400 font-medium">MSME Imported: </span>
+                <span className="font-bold text-slate-800">{discoveryStats.total_msme_imported}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tab Selection: MCA Company Master vs Udyam MSME */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200/80">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleTabChange('mca')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                govTab === 'mca'
+                  ? 'bg-white text-sky-800 shadow-xs border border-sky-100 font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Landmark className="w-4 h-4 text-sky-600" />
+              <span>MCA Company Master (data.gov.in / mca.gov.in)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('msme')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                govTab === 'msme'
+                  ? 'bg-white text-indigo-800 shadow-xs border border-indigo-100 font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              <span>Udyam MSME Directory (udyamregistration.gov.in)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Download Guide & External Link Instructions */}
+        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between font-bold gap-2">
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                {govTab === 'mca'
+                  ? 'How to obtain official MCA Company Master Data:'
+                  : 'How to obtain official Udyam MSME Registration Data:'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {govTab === 'mca' ? (
+                <>
+                  <a
+                    href="https://www.mca.gov.in/content/mca/global/en/data-and-reports/company-statistics/company-master-data.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-sky-700 hover:underline bg-white px-2.5 py-1 rounded-lg border border-sky-200"
+                  >
+                    <span>mca.gov.in</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href="https://data.gov.in/resource/company-master-data"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-sky-700 hover:underline bg-white px-2.5 py-1 rounded-lg border border-sky-200"
+                  >
+                    <span>data.gov.in</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </>
+              ) : (
+                <a
+                  href="https://udyamregistration.gov.in/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-bold text-indigo-700 hover:underline bg-white px-2.5 py-1 rounded-lg border border-indigo-200"
+                >
+                  <span>udyamregistration.gov.in</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] text-amber-800 leading-relaxed">
+            {govTab === 'mca'
+              ? 'Download the monthly Company Master ZIP/CSV for Maharashtra (RoC-Mumbai or RoC-Pune). Upload the unzipped CSV below. The engine will automatically filter for "Maharashtra" + "Active" status, classify NIC codes (6201, 7110, 8510, 5510, etc.) into CRM verticals, extract primary director names, estimate AV budget from Authorised Capital, and assign priority.'
+              : 'Download the state-level Udyam Registration CSV for Maharashtra. Upload the CSV below. The engine filters for Maharashtra enterprises, auto-classifies service/industrial categories, extracts districts, and assigns priority based on commencement date.'}
+          </p>
+        </div>
+
+        {/* Drag-and-Drop Upload Zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setGovDragging(true); }}
+          onDragLeave={() => setGovDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setGovDragging(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleGovFileSelect(file);
+          }}
+          className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
+            govDragging
+              ? 'border-sky-500 bg-sky-50/80 scale-[1.01]'
+              : govFile
+              ? 'border-emerald-400 bg-emerald-50/30'
+              : 'border-slate-300 hover:border-sky-400 bg-slate-50/50'
+          }`}
+        >
+          <div className="max-w-md mx-auto space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center mx-auto shadow-2xs">
+              <UploadCloud className="w-6 h-6" />
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-slate-800">
+                {govFile ? `Selected: ${govFile.name}` : `Drag & Drop ${govTab === 'mca' ? 'MCA Company Master' : 'Udyam MSME'} CSV`}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {govFile
+                  ? `${(govFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for parsing & ingestion`
+                  : 'Supports large files (streams in 500-row chunks with zero memory overflow)'}
+              </p>
+            </div>
+
+            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 cursor-pointer shadow-xs transition-all">
+              <span>{govFile ? 'Choose Different File' : 'Browse Local CSV'}</span>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleGovFileSelect(file);
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Loading Preview Spinner */}
+        {previewLoading && (
+          <div className="p-6 text-center text-xs text-sky-600 font-semibold flex items-center justify-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Scanning first 500 rows and calculating Maharashtra + NIC vertical matches...</span>
+          </div>
+        )}
+
+        {/* Preview Table & Filter Preview Statistics */}
+        {previewData && !previewLoading && (
+          <div className="space-y-4">
+            
+            {/* Filter Preview Banner */}
+            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-indigo-900 font-semibold">
+                <Filter className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  <strong>Filter Preview:</strong> Sample scan matched <span className="font-extrabold text-indigo-700">{previewData.matchingCount}</span> verified Maharashtra active entities out of {previewData.sampleChecked} sampled records.
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shrink-0">
+                NIC Auto-Classification Active
+              </span>
+            </div>
+
+            {/* Preview Table (First 5 parsed rows) */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">Company / Enterprise</th>
+                    <th className="py-2.5 px-3">Identifier</th>
+                    <th className="py-2.5 px-3">{govTab === 'mca' ? 'RoC / City' : 'District'}</th>
+                    <th className="py-2.5 px-3">Mapped Vertical</th>
+                    <th className="py-2.5 px-3">{govTab === 'mca' ? 'Key Director' : 'Type'}</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {previewData.previewRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/80">
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 max-w-[200px] truncate">
+                        {row.company_name || row.enterprise_name}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">
+                        {row.cin || row.udyam_number || 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {row.roc_code || row.district || row.state}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          row.mapped_vertical === 'Unmapped'
+                            ? 'bg-slate-100 text-slate-500'
+                            : 'bg-sky-100 text-sky-800'
+                        }`}>
+                          {row.mapped_vertical || row.major_activity || 'Corporate IT'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600 truncate max-w-[150px]">
+                        {row.directors || row.type || 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {row.is_match ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            ✓ Match
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                            Skip (Out of scope)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Ingestion Trigger Button */}
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleTriggerGovImport}
+                disabled={govImporting}
+                className="px-6 py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-600 via-amber-500 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-60"
+              >
+                {govImporting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Streaming & Ingesting Government Records...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="w-4 h-4" />
+                    <span>Start Ingestion: Ingest Verified {govTab === 'mca' ? 'MCA Company' : 'MSME'} Leads</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        )}
+
+        {/* Live Progress Bar (During active streaming import) */}
+        {govImporting && (
+          <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-sky-900">
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                <span>Processing Stream: {activeJob ? `Job #${activeJob.id} - ${activeJob.total_rows} rows parsed` : 'Initializing stream...'}</span>
+              </span>
+              <span>{activeJob ? `${activeJob.leads_inserted} inserted` : 'Streaming...'}</span>
+            </div>
+            
+            <div className="w-full bg-sky-200 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-sky-500 to-indigo-600 h-2.5 rounded-full animate-pulse transition-all duration-300"
+                style={{ width: activeJob && activeJob.total_rows > 0 ? `${Math.min(100, Math.round((activeJob.leads_inserted / Math.max(1, activeJob.total_rows)) * 100))}%` : '50%' }}
+              ></div>
+            </div>
+
+            {activeJob && (
+              <div className="flex items-center gap-4 text-[11px] text-sky-700 pt-1">
+                <span>Total Streamed: <strong>{activeJob.total_rows}</strong></span>
+                <span>•</span>
+                <span className="text-emerald-700">Inserted: <strong>{activeJob.leads_inserted}</strong></span>
+                <span>•</span>
+                <span className="text-slate-500">Skipped (duplicates/non-matching): <strong>{activeJob.leads_skipped}</strong></span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Success Summary Banner */}
+        {govSuccessSummary && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-emerald-900 font-semibold">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span><strong>Ingestion Succeeded:</strong> {govSuccessSummary}</span>
+            </div>
+            {onNavigateToAllLeads && (
+              <button
+                type="button"
+                onClick={onNavigateToAllLeads}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all cursor-pointer shrink-0"
+              >
+                View Leads in CRM
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {govError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2 text-xs text-rose-800">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{govError}</span>
+          </div>
+        )}
 
       </div>
 

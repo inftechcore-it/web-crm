@@ -143,6 +143,55 @@ export async function generateFromGooglePlaces(payload) {
   return res.json();
 }
 
+export async function importMcaCsv(formData) {
+  const res = await fetch(`${BASE_URL}/discovery/import-mca`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `MCA import failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function importMsmeCsv(formData) {
+  const res = await fetch(`${BASE_URL}/discovery/import-msme`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `MSME import failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function previewDiscoveryCsv(formData, type = 'mca') {
+  const res = await fetch(`${BASE_URL}/discovery/preview?type=${type}`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `CSV preview failed`);
+  }
+  return res.json();
+}
+
+export async function fetchDiscoveryJobs() {
+  const res = await fetch(`${BASE_URL}/discovery/jobs`);
+  if (!res.ok) throw new Error('Failed to fetch discovery jobs');
+  return res.json();
+}
+
+export async function fetchDiscoveryStats() {
+  const res = await fetch(`${BASE_URL}/discovery/stats`);
+  if (!res.ok) throw new Error('Failed to fetch discovery stats');
+  return res.json();
+}
+
 export const EXPORT_EXCEL_URL = `${BASE_URL}/export/excel`;
 export const EXPORT_CSV_URL = `${BASE_URL}/export/csv`;
 export const EXPORT_JSON_URL = `${BASE_URL}/export/json`;
+

@@ -52,6 +52,20 @@ function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS import_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source TEXT NOT NULL,
+      filename TEXT,
+      query_params TEXT,
+      total_rows INTEGER DEFAULT 0,
+      leads_inserted INTEGER DEFAULT 0,
+      leads_skipped INTEGER DEFAULT 0,
+      errors INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'running',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    );
+
     CREATE INDEX IF NOT EXISTS idx_leads_city ON leads(city);
     CREATE INDEX IF NOT EXISTS idx_leads_vertical ON leads(vertical);
     CREATE INDEX IF NOT EXISTS idx_leads_priority ON leads(priority);

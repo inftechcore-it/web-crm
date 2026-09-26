@@ -35,6 +35,7 @@ seedDatabase(false);
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/discovery', require('./routes/discovery'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
